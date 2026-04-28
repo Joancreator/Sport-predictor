@@ -2273,6 +2273,24 @@
        Los dejamos en el DOM para no tocar la lógica de loadNBAGames/loadMLBGames. */
     .legacy-games-grid { display: none !important; }
 
+    /* ===== ALINEACIÓN VS PITCHER ===== */
+    .lvp-section-title {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; margin-bottom: 8px; padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .lvp-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; white-space: nowrap; }
+    .lvp-table th {
+      text-align: left; color: var(--text-muted); font-weight: 600;
+      font-size: 0.67rem; text-transform: uppercase; letter-spacing: 0.4px;
+      padding: 4px 7px; border-bottom: 1px solid var(--border);
+    }
+    .lvp-table td { padding: 6px 7px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .lvp-table tr:last-child td { border-bottom: none; }
+    .lvp-table tr:hover td { background: rgba(255,255,255,0.03); }
+    .lvp-block { margin-bottom: 16px; }
+    .lvp-block:last-child { margin-bottom: 0; }
+
     /* Equipos lado a lado en el header del panel */
     .panel-game-teams {
       display: flex;
@@ -4247,8 +4265,8 @@ ${JSON.stringify(ctx, null, 2)}`;
       currentBatterData.currentChartStat = key;
       const labelMap = { hits:'Hits', hr:'HR', bb:'BB', k:'K', rbi:'RBI', tb:'Bases totales' };
       const statKeyMap = { hits:'hits', hr:'homeRuns', bb:'baseOnBalls', k:'strikeOuts', rbi:'rbi', tb:'totalBases' };
-      const window = currentBatterData.currentWindow;
-      const logs = window ? currentBatterData.allLogs.slice(0, window) : currentBatterData.allLogs;
+      const winN = currentBatterData.currentWindow;
+      const logs = winN ? currentBatterData.allLogs.slice(0, winN) : currentBatterData.allLogs;
       const sk = statKeyMap[key];
       const vals = logs.map(g => g.stat?.[sk] ?? 0).reverse();
       if (playerCharts.mlbBatter) {
@@ -4261,7 +4279,7 @@ ${JSON.stringify(ctx, null, 2)}`;
         playerCharts.mlbBatter.update();
       }
       // Actualizar título y botones activos
-      const winLabel = window ? `últimos ${logs.length} juegos` : `temporada (${logs.length} juegos)`;
+      const winLabel = winN ? `últimos ${logs.length} juegos` : `temporada (${logs.length} juegos)`;
       const titleEl = document.getElementById('batterChartTitle');
       if (titleEl) titleEl.textContent = `${labelMap[key]} por partido — ${winLabel}`;
       document.querySelectorAll('.batter-stat-btn').forEach(b =>
@@ -5874,9 +5892,7 @@ ${JSON.stringify(ctx, null, 2)}`;
       // Margen esperado para el equipo local = (su PF - su PA del rival) - (PF rival - PA local), promediado
       let spreadPred = null, spreadPick = null;
       if (homeRec.pf != null && awayRec.pf != null) {
-        // Margen esperado del local (positivo = local gana por X)
-        const expHomeMargin = ((homeRec.pf - awayRec.pa) + (homeRec.pa < 0 ? 0 : (awayRec.pa - awayRec.pf))) / 2;
-        // Más simple y robusto: diferencia de diferenciales
+        // Diferencia de diferenciales de puntos (robusto y directo)
         spreadPred = (homeRec.diff ?? 0) - (awayRec.diff ?? 0);
         if (spreadHome != null) {
           // spreadHome es negativo cuando el local es favorito (-3.5 = local favorito por 3.5)
@@ -6251,6 +6267,175 @@ ${JSON.stringify(ctx, null, 2)}`;
         ${ctxBlock}
         <div class="props-list">${items}</div>
       </div>`;
+    }
+
+    // =====================================================================
+    // ALINEACIÓN VS PITCHER (MLB)
+    // Muestra los stats de carrera de cada bateador del equipo visitante
+    // contra el pitcher local, y viceversa — usando MLB Stats API.
+    // Carga lazy (igual patrón que loadGameProps).
+    // =====================================================================
+
+    const lineupVsPitcherCache = new Map();
+
+    // Descarga el roster activo de un equipo MLB y devuelve solo los bateadores
+    // (excluye pitchers). Máx 9 por defecto (la alineación titular típica).
+    async function fetchTeamRosterBatters(mlbTeamId, n = 9) {
+      try {
+        const r = await fetch(`https://statsapi.mlb.com/api/v1/teams/${mlbTeamId}/roster/Active`);
+        if (!r.ok) return [];
+        const d = await r.json();
+        return (d.roster || [])
+          .filter(p => p.position?.type !== 'Pitcher' && p.position?.code !== '1')
+          .slice(0, n)
+          .map(p => ({ id: p.person.id, name: p.person.fullName, pos: p.position?.abbreviation || '' }));
+      } catch { return []; }
+    }
+
+    // Stats de CARRERA de un bateador específico vs un pitcher específico.
+    // Endpoint: /people/{batterId}/stats?stats=vsPlayer&opposingPlayerId={pitcherId}
+    async function fetchBatterVsPitcher(batterId, pitcherId) {
+      const key = `lvp-${batterId}-${pitcherId}`;
+      if (lineupVsPitcherCache.has(key)) return lineupVsPitcherCache.get(key);
+      try {
+        const r = await fetch(
+          `https://statsapi.mlb.com/api/v1/people/${batterId}/stats` +
+          `?stats=vsPlayer&opposingPlayerId=${pitcherId}&sportId=1&group=hitting`
+        );
+        if (!r.ok) { lineupVsPitcherCache.set(key, null); return null; }
+        const d = await r.json();
+        const career = d.stats?.find(s => s.type?.displayName === 'vsPlayerTotal')?.splits?.[0]?.stat || null;
+        lineupVsPitcherCache.set(key, career);
+        return career;
+      } catch { lineupVsPitcherCache.set(key, null); return null; }
+    }
+
+    // Genera el HTML de una tabla para un equipo vs su pitcher rival
+    function renderLineupVsTable(batters, pitcherName, isHome) {
+      const hdrColor = isHome ? 'var(--accent-blue)' : 'var(--accent-red)';
+      const sideLabel = isHome ? 'Local' : 'Visitante';
+      const rows = batters.map(b => {
+        if (!b.vs || !parseInt(b.vs.atBats || 0)) {
+          return `<tr>
+            <td>${escapeHtml(b.name)}</td>
+            <td style="color:var(--text-muted)">${b.pos}</td>
+            <td colspan="6" style="color:var(--text-muted);font-style:italic;font-size:0.72rem">Sin historial</td>
+          </tr>`;
+        }
+        const ab  = parseInt(b.vs.atBats    || 0);
+        const h   = parseInt(b.vs.hits      || 0);
+        const hr  = parseInt(b.vs.homeRuns  || 0);
+        const rbi = parseInt(b.vs.rbi       || 0);
+        const so  = parseInt(b.vs.strikeOuts|| 0);
+        const avg = b.vs.avg || (ab > 0 ? (h / ab).toFixed(3) : '.000');
+        const avgNum = parseFloat(avg);
+        const avgColor = avgNum >= 0.300 ? 'var(--accent-green)'
+                       : avgNum <= 0.200 ? 'var(--accent-red)' : 'var(--text-primary)';
+        return `<tr>
+          <td style="max-width:110px;overflow:hidden;text-overflow:ellipsis">${escapeHtml(b.name)}</td>
+          <td style="color:var(--text-muted)">${b.pos}</td>
+          <td>${ab}</td>
+          <td><strong style="color:${avgColor}">${avg}</strong></td>
+          <td>${h}</td>
+          <td>${hr > 0 ? `<strong style="color:var(--accent-yellow)">${hr}</strong>` : 0}</td>
+          <td>${rbi}</td>
+          <td style="color:var(--text-muted)">${so}</td>
+        </tr>`;
+      }).join('');
+
+      return `<div class="lvp-block">
+        <div class="lvp-section-title" style="color:${hdrColor}">
+          ${sideLabel} — vs ${escapeHtml(pitcherName)}
+        </div>
+        <div style="overflow-x:auto">
+          <table class="lvp-table">
+            <thead>
+              <tr><th>Bateador</th><th>Pos</th><th>AB</th><th>AVG</th><th>H</th><th>HR</th><th>RBI</th><th>K</th></tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+    }
+
+    // Punto de entrada: carga lazy del matchup histórico de la alineación vs pitcher
+    async function loadLineupVsPitcher(btn) {
+      const content = btn.nextElementSibling;
+      const labelOpen  = '⚾ Alineación vs pitcher ▼';
+      const labelClose = 'Ocultar alineación vs pitcher ▲';
+      if (content.dataset.loaded === '1') {
+        content.classList.toggle('open');
+        btn.textContent = content.classList.contains('open') ? labelClose : labelOpen;
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Buscando historial vs pitcher…';
+      content.classList.add('open');
+      content.innerHTML = `<div class="props-loading">Cargando alineaciones y stats históricas…</div>`;
+
+      const homeName      = btn.dataset.homeName;
+      const awayName      = btn.dataset.awayName;
+      const hPitcherName  = btn.dataset.homePitcherName;   // pitcher local (enfrenta a visitantes)
+      const aPitcherName  = btn.dataset.awayPitcherName;   // pitcher visitante (enfrenta a locales)
+      const homeAbbr      = btn.dataset.homeAbbr;
+      const awayAbbr      = btn.dataset.awayAbbr;
+
+      try {
+        // IDs de equipos MLB y pitchers en paralelo
+        const [homeMLBId, awayMLBId, hPitcherMLBId, aPitcherMLBId] = await Promise.all([
+          getMLBTeamId(homeName),
+          getMLBTeamId(awayName),
+          hPitcherName && hPitcherName !== 'TBD' ? resolveMLBPitcherId(hPitcherName) : Promise.resolve(null),
+          aPitcherName && aPitcherName !== 'TBD' ? resolveMLBPitcherId(aPitcherName) : Promise.resolve(null)
+        ]);
+
+        // Rosters de ambos equipos en paralelo
+        const [homeRoster, awayRoster] = await Promise.all([
+          homeMLBId ? fetchTeamRosterBatters(homeMLBId) : Promise.resolve([]),
+          awayMLBId ? fetchTeamRosterBatters(awayMLBId) : Promise.resolve([])
+        ]);
+
+        // Stats carrera vs pitcher en paralelo
+        // Visitantes baten vs PITCHER LOCAL (hPitcherMLBId)
+        // Locales baten vs PITCHER VISITANTE (aPitcherMLBId)
+        const [awayBatters, homeBatters] = await Promise.all([
+          hPitcherMLBId
+            ? Promise.all(awayRoster.map(b => fetchBatterVsPitcher(b.id, hPitcherMLBId).then(vs => ({ ...b, vs }))))
+            : Promise.resolve(awayRoster.map(b => ({ ...b, vs: null }))),
+          aPitcherMLBId
+            ? Promise.all(homeRoster.map(b => fetchBatterVsPitcher(b.id, aPitcherMLBId).then(vs => ({ ...b, vs }))))
+            : Promise.resolve(homeRoster.map(b => ({ ...b, vs: null })))
+        ]);
+
+        const blocks = [];
+
+        if (hPitcherName && hPitcherName !== 'TBD' && awayBatters.length)
+          blocks.push(renderLineupVsTable(awayBatters, hPitcherName, false));
+
+        if (aPitcherName && aPitcherName !== 'TBD' && homeBatters.length)
+          blocks.push(renderLineupVsTable(homeBatters, aPitcherName, true));
+
+        if (!blocks.length) {
+          content.innerHTML = `<div class="props-empty">
+            No hay pitchers confirmados o no se pudo cargar la alineación.
+          </div>`;
+        } else {
+          content.innerHTML = `
+            <div class="props-honest-note">
+              Stats de <strong>carrera histórica</strong> del bateador vs el pitcher específico.
+              "Sin historial" = nunca se han enfrentado en MLB.
+              AVG ≥ .300 en verde, ≤ .200 en rojo.
+            </div>
+            <div style="padding:0 2px">${blocks.join('')}</div>`;
+        }
+        content.dataset.loaded = '1';
+        btn.textContent = labelClose;
+      } catch(e) {
+        content.innerHTML = `<div class="props-error">Error cargando alineación: ${escapeHtml(e.message)}</div>`;
+        btn.textContent = '⚾ Reintentar ▼';
+      } finally {
+        btn.disabled = false;
+      }
     }
 
     // Punto de entrada cuando el usuario hace click en "Ver tendencias".
@@ -6899,7 +7084,19 @@ ${JSON.stringify(ctx, null, 2)}`;
               data-home-abbr="${homeAbbr}"
               data-away-abbr="${awayAbbr}"
             >🎯 Ver tendencias de jugadores ▼</button>
-            <div class="pred-props-content"></div>`;
+            <div class="pred-props-content"></div>
+            ${league === 'mlb' && ((homePitcher?.fullName && homePitcher.fullName !== 'TBD') || (awayPitcher?.fullName && awayPitcher.fullName !== 'TBD')) ? `
+            <button class="pred-props-toggle"
+              onclick="loadLineupVsPitcher(this)"
+              style="border-top:none;background:rgba(255,215,0,0.05);color:var(--accent-yellow)"
+              data-home-name="${escapeHtml(homeComp.team?.displayName || homeName)}"
+              data-away-name="${escapeHtml(awayComp.team?.displayName || awayName)}"
+              data-home-pitcher-name="${escapeHtml(homePitcher?.fullName || '')}"
+              data-away-pitcher-name="${escapeHtml(awayPitcher?.fullName || '')}"
+              data-home-abbr="${homeAbbr}"
+              data-away-abbr="${awayAbbr}"
+            >⚾ Alineación vs pitcher ▼</button>
+            <div class="pred-props-content"></div>` : ''}`;
           })()}
 
         </div>`;
