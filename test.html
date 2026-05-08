@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sports Predictor — Smoke Tests</title>
+  <style>
+    body { font-family: monospace; background: #1a1a1a; color: #ccc; padding: 20px; }
+    .pass { color: #00d084; }
+    .fail { color: #ff4d4d; font-weight: bold; }
+    h2 { color: #fff; margin-top: 24px; }
+    pre { background: #111; padding: 12px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h1 style="color:#fff">Sports Predictor — Smoke Tests</h1>
+  <pre id="output">Ejecutando...</pre>
+
+  <!-- Cargar módulos necesarios para los tests -->
+  <script src="js/config.js"></script>
+  <script src="data/mockData.js"></script>
+  <script src="js/odds.js"></script>
+
+  <script>
+    const results = [];
+    let passed = 0, failed = 0;
+
+    function assert(description, condition) {
+      if (condition) {
+        results.push(`<span class="pass">✓ PASS</span> ${description}`);
+        passed++;
+      } else {
+        results.push(`<span class="fail">✗ FAIL</span> ${description}`);
+        failed++;
+      }
+    }
+
+    function assertApprox(description, actual, expected, tolerance = 0.001) {
+      const ok = Math.abs(actual - expected) < tolerance;
+      assert(`${description} (expected ≈${expected}, got ${actual?.toFixed(4)})`, ok);
+    }
+
+    // ===== ODDS: americanToProb =====
+    // americanToProb debe devolver probabilidades implícitas correctas.
+    // -110 → 52.38% (la casa siempre tiene vig)
+    // -200 → 66.67%
+    // +150 → 40.00%
+    if (typeof americanToProb !== 'undefined') {
+      assertApprox('americanToProb(-110)', americanToProb(-110), 0.5238, 0.001);
+      assertApprox('americanToProb(-200)', americanToProb(-200), 0.6667, 0.001);
+      assertApprox('americanToProb(+150)', americanToProb(150),  0.4000, 0.001);
+      assert('americanToProb(null) === null', americanToProb(null) == null);
+    } else {
+      results.push(`<span class="fail">✗ SKIP</span> americanToProb no disponible`);
+    }
+
+    // ===== ODDS: fmtOdds =====
+    if (typeof fmtOdds !== 'undefined') {
+      assert('fmtOdds(-110) === "-110"', fmtOdds(-110) === '-110');
+      assert('fmtOdds(150)  === "+150"', fmtOdds(150)  === '+150');
+    }
+
+    // ===== ODDS: teamLastWord =====
+    if (typeof teamLastWord !== 'undefined') {
+      assert('teamLastWord("Los Angeles Lakers") === "lakers"', teamLastWord('Los Angeles Lakers') === 'lakers');
+      assert('teamLastWord("Yankees") === "yankees"',           teamLastWord('Yankees') === 'yankees');
+      assert('teamLastWord("") === ""',                         teamLastWord('') === '');
+    }
+
+    // ===== CONFIG =====
+    if (typeof CONFIG !== 'undefined') {
+      assert('CONFIG.ESPN_BASE exists',          typeof CONFIG.ESPN_BASE === 'string');
+      assert('CONFIG.FETCH_TIMEOUT_MS = 8000',   CONFIG.FETCH_TIMEOUT_MS === 8000);
+      assert('CONFIG.ELO_BASE = 1500',           CONFIG.ELO_BASE === 1500);
+      assert('CONFIG.CONF_HIGH_EDGE = 0.07',     CONFIG.CONF_HIGH_EDGE === 0.07);
+    } else {
+      results.push(`<span class="fail">✗ SKIP</span> CONFIG no disponible`);
+    }
+
+    // ===== MOCK DATA: stadium coords =====
+    if (typeof getStadiumCoords !== 'undefined') {
+      const yankees = getStadiumCoords('New York Yankees');
+      assert('getStadiumCoords("New York Yankees") returns coords', yankees?.lat != null && yankees?.lon != null);
+      const astros = getStadiumCoords('Houston Astros');
+      assert('Astros stadium has roof = true',    astros?.roof === true);
+      const dodgers = getStadiumCoords('Los Angeles Dodgers');
+      assert('Dodgers stadium has no roof',        !dodgers?.roof);
+    }
+
+    // ===== PARLAY: americanToDecimal =====
+    if (typeof americanToDecimal !== 'undefined') {
+      assertApprox('americanToDecimal(-110)', americanToDecimal(-110), 1.9091, 0.001);
+      assertApprox('americanToDecimal(+200)', americanToDecimal(200),  3.0,    0.001);
+    }
+
+    // ===== WEATHER: calcWeatherSignal =====
+    if (typeof calcWeatherSignal !== 'undefined') {
+      const hotDayWindy = calcWeatherSignal(
+        { tempF: 75, windMph: 20, windDeg: 0, rain: false, snow: false },
+        { lat: 41.9, lon: -87.6 } // sin techo
+      );
+      assert('calcWeatherSignal: windy outdoor gives adj > 0', hotDayWindy?.adj > 0);
+
+      const coldDay = calcWeatherSignal(
+        { tempF: 40, windMph: 5, windDeg: 0, rain: false, snow: false },
+        { lat: 41.9, lon: -87.6 }
+      );
+      assert('calcWeatherSignal: cold outdoor gives adj < 0', coldDay?.adj < 0);
+
+      const roofStadium = calcWeatherSignal(
+        { tempF: 40, windMph: 30, rain: true },
+        { lat: 29.7, lon: -95.3, roof: true }
+      );
+      assert('calcWeatherSignal: roof stadium returns null', roofStadium === null);
+    }
+
+    // ===== RENDER RESULTS =====
+    const summary = `\n<strong>${passed} passed, ${failed} failed</strong> de ${passed + failed} tests`;
+    document.getElementById('output').innerHTML = results.join('\n') + summary;
+  </script>
+</body>
+</html>

@@ -21,9 +21,11 @@ async function fetchWeather(lat, lon) {
   const key = getWeatherKey();
   if (!key) return null;
   try {
+    const base = (typeof CONFIG !== 'undefined' ? CONFIG.WEATHER_BASE : 'https://api.openweathermap.org/data/2.5');
+    const ms   = (typeof CONFIG !== 'undefined' ? CONFIG.WEATHER_TIMEOUT_MS : 6000);
     const r = await fetchWithTimeout(
-      `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${key}&units=imperial`,
-      6000
+      `${base}/weather?lat=${lat}&lon=${lon}&appid=${key}&units=imperial`,
+      ms
     );
     if (!r.ok) return null;
     const d = await r.json();
@@ -44,21 +46,20 @@ async function fetchWeather(lat, lon) {
 function calcWeatherSignal(weather, stadiumCoords) {
   if (!weather || stadiumCoords?.roof) return null;
 
+  const windThreshold = (typeof CONFIG !== 'undefined' ? CONFIG.WIND_OVER_THRESHOLD : 15);
+  const coldThreshold = (typeof CONFIG !== 'undefined' ? CONFIG.TEMP_COLD_THRESHOLD : 50);
+
   let adj = 0;
   const notes = [];
 
   // Temperatura: frío reduce totales (menos home runs)
-  if (weather.tempF < 50) {
+  if (weather.tempF < coldThreshold) {
     adj -= 0.01; notes.push(`Frío (${weather.tempF}°F)`);
   }
 
-  // Viento: dirección aproximada hacia afuera (campo de juego mira al norte ~0°)
-  // Simplificación: viento en cualquier dirección >15 mph tiene efecto
-  if (weather.windMph > 15) {
-    // No podemos saber orientación exacta del campo sin datos extra,
-    // así que aplicamos el efecto sobre el total solo
-    adj += 0.015; // viento fuerte → más varianza → ligero Over bias
-    notes.push(`Viento ${weather.windMph} mph`);
+  // Viento fuerte → más varianza → ligero Over bias en totales
+  if (weather.windMph > windThreshold) {
+    adj += 0.015; notes.push(`Viento ${weather.windMph} mph`);
   }
   if (weather.windMph > 25) {
     adj += 0.01; notes.push('Viento muy fuerte');

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sports-predictor",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["-e", "require('http').createServer((req,res)=>{const fs=require('fs'),path=require('path');let f=path.join('/Users/joanlopez/Desktop/sports-predictor',req.url==='/'?'index.html':req.url);fs.readFile(f,(e,d)=>{if(e){res.writeHead(404);res.end();}else{const ext=path.extname(f);const t={'html':'text/html','js':'text/javascript','css':'text/css','json':'application/json'}[ext.slice(1)]||'text/plain';res.writeHead(200,{'Content-Type':t});res.end(d);}});}).listen(3000,()=>console.log('ok'))"],
+      "port": 3000
+    }
+  ]
+}

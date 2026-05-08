@@ -29,8 +29,9 @@ function toggleParlayPick(id, label, odds, pick, league, homeEstP) {
   if (idx >= 0) {
     parlaySlips.splice(idx, 1);
   } else {
-    if (parlaySlips.length >= 8) {
-      alert('Máximo 8 picks en un parlay.');
+    const maxLegs = (typeof CONFIG !== 'undefined' ? CONFIG.PARLAY_MAX_LEGS : 8);
+    if (parlaySlips.length >= maxLegs) {
+      alert(`Máximo ${maxLegs} picks en un parlay.`);
       return;
     }
     parlaySlips.push({ id, label, odds, pick, league, homeEstP });
