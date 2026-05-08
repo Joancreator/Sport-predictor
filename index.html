@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sports Predictor Pro</title>
+
+  <!-- Chart.js: una librería gratuita que dibuja gráficas bonitas en el navegador -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+
+  <!-- ===== BARRA DE NAVEGACIÓN =====
+       Es la franja de arriba con los botones para moverse entre secciones. -->
+  <nav>
+    <div class="nav-logo">Sports<span>Predictor</span></div>
+
+    <ul class="nav-links">
+      <li><a href="#" class="active" onclick="showSection('home', this)">Dashboard</a></li>
+      <li><a href="#" onclick="showSection('predictions', this)">Predicciones</a></li>
+      <li><a href="#" onclick="showSection('history', this)">Historial</a></li>
+      <li><a href="#" onclick="showSection('equipos', this)">Equipos</a></li>
+    </ul>
+
+    <div class="nav-right">
+      <div class="nav-search-wrapper">
+        <div class="nav-search-box">
+          <select id="searchSport" class="search-sport-select">
+            <option value="mlb">MLB</option>
+            <option value="nba">NBA</option>
+          </select>
+          <input type="text" id="playerSearchInput" class="search-input"
+            placeholder="Buscar jugador..." autocomplete="off" />
+        </div>
+        <div id="searchDropdown" class="search-dropdown"></div>
+      </div>
+      <div class="nav-date" id="navDate"></div>
+      <div class="refresh-indicator" id="refreshIndicator" onclick="manualRefresh()" title="Click para refrescar ahora">
+        <span class="refresh-dot"></span>
+        <span id="refreshLabel">Actualizando...</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ===== CONTENIDO PRINCIPAL ===== -->
+  <main>
+
+    <!-- ===== SECCIÓN INICIO (DASHBOARD CENTRALIZADO) =====
+         Layout de dos columnas: lista de partidos a la izquierda,
+         panel de detalle a la derecha. Click en un partido → se llena
+         el panel con predicción + análisis + IA, sin modales. -->
+    <section id="section-home" class="section active">
+
+      <div class="dashboard-layout">
+
+        <!-- ===== COLUMNA IZQUIERDA: SIDEBAR ===== -->
+        <aside class="dashboard-sidebar">
+
+          <!-- Mini-resumen de contadores arriba -->
+          <div class="dashboard-mini-summary">
+            <div class="dashboard-mini-card">
+              <div class="dashboard-mini-num" id="totalGames" style="color: var(--accent-green)">—</div>
+              <div class="dashboard-mini-label">Hoy</div>
+            </div>
+            <div class="dashboard-mini-card">
+              <div class="dashboard-mini-num" id="nbaCount" style="color: var(--nba-color)">—</div>
+              <div class="dashboard-mini-label">NBA</div>
+            </div>
+            <div class="dashboard-mini-card">
+              <div class="dashboard-mini-num" id="mlbCount" style="color: var(--accent-blue)">—</div>
+              <div class="dashboard-mini-label">MLB</div>
+            </div>
+          </div>
+
+          <!-- Filtros por liga -->
+          <div class="dashboard-filters">
+            <button class="dashboard-filter-btn active" onclick="filterDashboard('all', this)">Todos</button>
+            <button class="dashboard-filter-btn" onclick="filterDashboard('nba', this)">NBA</button>
+            <button class="dashboard-filter-btn" onclick="filterDashboard('mlb', this)">MLB</button>
+          </div>
+
+          <!-- Cabecera de la lista -->
+          <div class="dashboard-sidebar-header">
+            <span class="dashboard-sidebar-title">Partidos</span>
+            <span class="dashboard-sidebar-count" id="liveCount">—</span>
+          </div>
+
+          <!-- Lista de partidos: la inyecta renderDashboardSidebar() -->
+          <div id="dashboardGameList">
+            <div class="loading-container">
+              <div class="spinner"></div>
+              <div class="loading-text" style="font-size:0.8rem">Cargando...</div>
+            </div>
+          </div>
+
+        </aside>
+
+        <!-- ===== COLUMNA DERECHA: PANEL DETALLE ===== -->
+        <main class="dashboard-panel" id="dashboardPanel">
+          <!-- Estado vacío inicial -->
+          <div class="dashboard-panel-empty">
+            <div class="dashboard-panel-empty-icon">⚡</div>
+            <div class="dashboard-panel-empty-title">Selecciona un partido</div>
+            <div>Toda la información (predicción, stats, análisis IA) aparecerá aquí.</div>
+          </div>
+        </main>
+
+      </div>
+
+      <!-- Containers legacy ocultos: el código de loadNBAGames/loadMLBGames sigue
+           escribiendo aquí, pero el usuario ya no los ve. Mantenerlos evita tocar
+           toda la lógica de carga de datos. -->
+      <div class="legacy-games-grid" id="nbaGames"></div>
+      <div class="legacy-games-grid" id="mlbGames"></div>
+
+    </section>
+
+    <!-- ===== SECCIONES EN CONSTRUCCIÓN (se construirán en próximos pasos) ===== -->
+    <section id="section-nba" class="section">
+      <div class="coming-soon">
+        <h3>Análisis NBA</h3>
+        <p>Selecciona un partido desde Inicio para ver el análisis completo</p>
+      </div>
+    </section>
+
+    <section id="section-mlb" class="section">
+      <div class="coming-soon">
+        <h3>Análisis MLB</h3>
+        <p>Selecciona un partido desde Inicio para ver el análisis completo</p>
+      </div>
+    </section>
+
+    <!-- ===== SECCIÓN PREDICCIONES =====
+         Combina forma reciente + odds para generar picks con nivel de confianza.
+         Se carga la primera vez que el usuario navega a esta sección. -->
+    <section id="section-predictions" class="section">
+
+      <div class="section-header">
+        <div>
+          <div class="section-title">Predicciones del Día</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px">
+            Modelo ensemble: Record · Pythagorean · Racha · Localía · Pitchers · Lesiones · Cuotas. Picks de ML, Total y Spread con props de jugadores.
+          </div>
+        </div>
+        <div class="pred-filter-tabs">
+          <button class="pred-filter-btn active" onclick="filterPredictions('all', this)">Todos</button>
+          <button class="pred-filter-btn" onclick="filterPredictions('nba', this)">NBA</button>
+          <button class="pred-filter-btn" onclick="filterPredictions('mlb', this)">MLB</button>
+        </div>
+      </div>
+
+      <!-- Llave OpenWeather (opcional, para señal climática MLB) -->
+      <div id="weatherKeyPanel" style="margin-bottom:14px;padding:10px 14px;background:var(--bg-card);border-radius:8px;border:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="color:var(--text-muted);font-size:0.8rem">🌤 Clima MLB (opcional):</span>
+        <input id="weatherKeyInput" type="password" placeholder="OpenWeather API key (gratis)"
+          style="width:240px;padding:5px 10px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:0.82rem"
+          oninput="saveWeatherKey(this.value)"
+        />
+        <span style="color:var(--text-muted);font-size:0.75rem">Añade señal de temperatura/viento para estadios MLB</span>
+      </div>
+
+      <!-- El contenido se genera dinámicamente por JavaScript -->
+      <div id="predictionsContainer">
+        <div class="loading-container">
+          <div class="spinner"></div>
+          <div class="loading-text">Cargando predicciones...</div>
+        </div>
+      </div>
+
+    </section>
+
+    <section id="section-history" class="section">
+      <h2 style="margin-bottom: 6px;">Historial de Predicciones</h2>
+      <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 0.9rem;">
+        Cada vez que abres "Predicciones", el modelo guarda lo que pronosticó.
+        Cuando el partido termina se compara contra el resultado real para que sepas
+        honestamente qué tan bien funciona el predictor.
+      </p>
+
+      <!-- Panel de bankroll para Kelly Criterion -->
+      <div class="bankroll-panel" style="margin-bottom:16px;padding:12px 16px;background:var(--bg-card);border-radius:10px;border:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="color:var(--text-secondary);font-size:0.85rem">Bankroll total (para Kelly):</span>
+        <input id="bankrollInput" type="number" min="0" step="100"
+          value=""
+          placeholder="Ej: 1000"
+          style="width:110px;padding:6px 10px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:0.9rem"
+          onchange="saveBankroll(this.value)"
+        />
+        <span style="color:var(--text-muted);font-size:0.78rem">El modelo mostrará cuánto apostar por pick (Kelly/4)</span>
+      </div>
+
+      <div class="history-stats" id="historyStats"></div>
+
+      <div class="history-controls">
+        <div class="history-filter-tabs">
+          <button class="history-filter-tab active" onclick="filterHistory('all', this)">Todos</button>
+          <button class="history-filter-tab" onclick="filterHistory('nba', this)">NBA</button>
+          <button class="history-filter-tab" onclick="filterHistory('mlb', this)">MLB</button>
+          <button class="history-filter-tab" onclick="filterHistory('correct', this)">Aciertos</button>
+          <button class="history-filter-tab" onclick="filterHistory('wrong', this)">Fallos</button>
+          <button class="history-filter-tab" onclick="filterHistory('pending', this)">Pendientes</button>
+        </div>
+        <div class="history-filter-tabs" style="margin-top:8px">
+          <button class="history-filter-tab history-period-tab active" onclick="filterHistoryPeriod('all', this)">Todo el tiempo</button>
+          <button class="history-filter-tab history-period-tab" onclick="filterHistoryPeriod('30d', this)">Últimos 30 días</button>
+          <button class="history-filter-tab history-period-tab" onclick="filterHistoryPeriod('7d', this)">Esta semana</button>
+        </div>
+        <button class="history-refresh-btn" onclick="reconcileHistoryAndRender()">↻ Actualizar resultados</button>
+      </div>
+
+      <div id="historyTableContainer">
+        <div class="loading-container"><div class="spinner"></div><div class="loading-text">Cargando historial...</div></div>
+      </div>
+    </section>
+
+    <!-- ===== SECCIÓN EQUIPOS =====
+         Muestra todos los equipos NBA y MLB con sus estadísticas.
+         Tiene dos vistas: lista de equipos y detalle de un equipo. -->
+    <section id="section-equipos" class="section">
+
+      <!-- Vista lista: grid con todos los equipos -->
+      <div id="equiposListView">
+        <div class="team-sport-tabs">
+          <button class="team-sport-tab active" onclick="switchTeamSport('nba', this)">NBA</button>
+          <button class="team-sport-tab" onclick="switchTeamSport('mlb', this)">MLB</button>
+        </div>
+        <div id="teamsListContainer">
+          <div class="loading-container">
+            <div class="spinner"></div>
+            <div class="loading-text">Cargando equipos...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vista detalle: perfil de un equipo específico -->
+      <div id="equiposDetailView" style="display:none">
+        <div class="player-back-bar">
+          <button class="btn-back" onclick="goBackFromTeamDetail()">← Equipos</button>
+          <div class="player-breadcrumb" id="teamBreadcrumb">Equipos</div>
+        </div>
+        <div id="teamLoadingState" class="loading-container" style="display:none">
+          <div class="spinner"></div>
+          <div class="loading-text">Cargando estadísticas del equipo...</div>
+        </div>
+        <div id="teamDetailContent"></div>
+      </div>
+
+    </section>
+
+    <!-- ===== SECCIÓN JUGADOR ===== -->
+    <section id="section-player" class="section">
+      <div class="player-back-bar">
+        <button class="btn-back" onclick="goBackFromPlayer()">← Volver</button>
+        <div class="player-breadcrumb" id="playerBreadcrumb">Jugadores</div>
+      </div>
+
+      <!-- Cargando... -->
+      <div id="playerLoadingState" class="loading-container" style="display:none">
+        <div class="spinner"></div>
+        <div class="loading-text">Cargando estadísticas...</div>
+      </div>
+
+      <!-- Contenido del jugador (generado por JavaScript) -->
+      <div id="playerContent"></div>
+    </section>
+
+  </main>
+
+  <!-- ===== MODAL DE ANÁLISIS (Ver Análisis + IA) ===== -->
+  <div class="analysis-modal-overlay" id="analysisModal" onclick="if(event.target===this) closeAnalysisModal()">
+    <div class="analysis-modal">
+      <div class="analysis-modal-header">
+        <div class="analysis-modal-title" id="analysisModalTitle">Análisis</div>
+        <button class="analysis-modal-close" onclick="closeAnalysisModal()">&times;</button>
+      </div>
+      <div class="analysis-modal-body" id="analysisModalBody">
+        <div class="loading-container"><div class="spinner"></div><div class="loading-text">Cargando análisis...</div></div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ===== PARLAY BUILDER TRAY ===== -->
+  <div id="parlayTray" class="hidden">
+    <div class="parlay-tray-header" onclick="toggleParlayTray()">
+      <div class="parlay-tray-title">
+        <span>Parlay Builder</span>
+        <span class="parlay-badge-count" id="parlayCount">0</span>
+      </div>
+      <div class="parlay-tray-actions">
+        <button class="parlay-clear-btn" onclick="event.stopPropagation();clearParlay()">Limpiar</button>
+        <span id="parlayChevron" style="color:var(--text-muted);font-size:0.85rem">▲</span>
+      </div>
+    </div>
+    <div id="parlayTrayBody" class="parlay-tray-body"></div>
+  </div>
+
+  <!-- Módulos especializados (cargados antes de app.js para que sus funciones estén disponibles globalmente) -->
+  <!-- Datos estáticos (coordenadas de estadios, etc.) -->
+  <script src="data/mockData.js"></script>
+  <!-- Cuotas, equipos, historial -->
+  <script src="js/odds.js"></script>
+  <script src="js/teams.js"></script>
+  <script src="js/history.js"></script>
+  <!-- Perfiles de jugadores -->
+  <script src="js/mlb-players.js"></script>
+  <script src="js/nba-players.js"></script>
+  <!-- Clima para estadios MLB -->
+  <script src="js/weather.js"></script>
+  <!-- Parlay builder (debe cargarse antes de predictions para que el botón funcione) -->
+  <script src="js/parlay.js"></script>
+  <!-- Motor de predicción (12 señales, ELO, props, render de cards) -->
+  <script src="js/predictions.js"></script>
+  <!-- Dashboard y main app (init) -->
+  <script src="js/dashboard.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
