@@ -1645,70 +1645,50 @@
       return picks;
     }
 
-    // Renderiza el panel "Top Picks del Día" con los N picks de mayor score.
+    // Featured picks — scroll horizontal de chips estilo Outlier
     function renderTopPicksPanel(picks, max = 8) {
       const top = picks.slice(0, max);
       if (!top.length) {
-        return `<div class="top-picks-panel">
-          <div class="top-picks-header">
-            <div class="top-picks-title"><span class="trophy">🏆</span> Top Picks del Día</div>
+        return `<div class="featured-picks">
+          <div class="featured-picks-header">
+            <span class="featured-picks-title">Mejores Picks del Día</span>
           </div>
-          <div class="top-picks-empty">Aún no hay picks con edge significativo. Revisa más tarde cuando se actualicen las cuotas.</div>
+          <div class="featured-picks-empty">Sin picks con edge significativo hoy. Revisa más tarde cuando se actualicen las cuotas.</div>
         </div>`;
       }
-      const rows = top.map((p, i) => {
+      const chips = top.map((p, i) => {
         const rank = i + 1;
         const rankCls = rank <= 3 ? `rank-${rank}` : '';
-        const strengthLbl = p.strength === 'strong' ? 'FUERTE' : 'EDGE';
-        return `<div class="top-pick-row ${rankCls}">
-          <div class="top-pick-rank">${rank}</div>
-          <div class="top-pick-body">
-            <div class="top-pick-line1">
-              <span class="top-pick-league-tag ${p.league}">${p.league.toUpperCase()}</span>
-              <span class="top-pick-type-tag">${p.type}</span>
-              <span class="top-pick-strength-tag ${p.strength}">${strengthLbl}</span>
-            </div>
-            <div class="top-pick-main">${escapeHtml(p.main)}</div>
-            <div class="top-pick-edge">${p.edgeDisplay}</div>
-            ${p.kellyDisplay ? `<div class="top-pick-kelly">${escapeHtml(p.kellyDisplay)}</div>` : ''}
-            <div class="top-pick-game">${escapeHtml(p.gameLabel)}</div>
+        const strengthCls = p.strength === 'strong' ? 'chip-strong' : 'chip-ok';
+        return `<div class="featured-pick-chip ${strengthCls} ${rankCls}">
+          <div class="chip-header">
+            <span class="chip-league ${p.league}">${p.league.toUpperCase()}</span>
+            <span class="chip-type">${p.type}</span>
           </div>
+          <div class="chip-main">${escapeHtml(p.main)}</div>
+          <div class="chip-edge">${p.edgeDisplay}</div>
+          ${p.kellyDisplay ? `<div class="chip-edge" style="color:var(--accent-blue);font-size:0.63rem">${escapeHtml(p.kellyDisplay)}</div>` : ''}
+          <div class="chip-game">${escapeHtml(p.gameLabel)}</div>
         </div>`;
       }).join('');
-      return `<div class="top-picks-panel">
-        <div class="top-picks-header">
-          <div class="top-picks-title"><span class="trophy">🏆</span> Top Picks del Día</div>
-          <div class="top-picks-subtitle">${top.length} ${top.length === 1 ? 'pick ordenado' : 'picks ordenados'} por valor estimado</div>
+      return `<div class="featured-picks">
+        <div class="featured-picks-header">
+          <span class="featured-picks-title">Mejores Picks del Día</span>
+          <span class="featured-picks-sub">${top.length} pick${top.length !== 1 ? 's' : ''} con edge positivo</span>
         </div>
-        <div class="top-picks-list">${rows}</div>
+        <div class="featured-picks-scroll">${chips}</div>
       </div>`;
     }
 
-    // Genera el HTML de una card de predicción
+    // Genera el HTML de una card de predicción — diseño Outlier-style
     function renderPredCard(game, homeComp, awayComp, homeRec, awayRec, odds, pred, extras = {}) {
       const { homePitcher, awayPitcher, homeInjuries = [], awayInjuries = [],
               homeTopScorers = [], awayTopScorers = [],
               homeTopBatters = [], awayTopBatters = [], h2h = null,
               weatherSignal = null, lineupStatus = null } = extras;
 
-      // Renderiza un bloque compacto de top 2 lesiones por equipo.
-      // Si hay más, mostramos "+N más"; si no hay nada relevante, no mostramos nada.
-      const injuriesBlock = (list) => {
-        if (!list || !list.length) return '';
-        const top = list.slice(0, 2);
-        const extra = list.length - top.length;
-        const items = top.map(inj => `
-          <div class="pred-injury-item">
-            <span class="pred-injury-name">${escapeHtml(inj.name)}</span>
-            <span class="pred-injury-status sev-${inj.severity}">${injuryStatusShort(inj.status)}</span>
-          </div>`).join('');
-        return `<div class="pred-injuries">
-          ${items}
-          ${extra > 0 ? `<div class="pred-injury-more">+${extra} más</div>` : ''}
-        </div>`;
-      };
-      const league  = game.league;
-      const state   = game.status.type.state;
+      const league = game.league;
+      const state  = game.status.type.state;
       const statusInfo = getStatusInfo(
         state === 'in' ? '2' : state === 'post' ? '3' : '1',
         game.status.type.shortDetail
@@ -1720,207 +1700,146 @@
       const awayLogo = awayComp.team?.logo || '';
       const homeAbbr = homeComp.team?.abbreviation || homeName.slice(0,3).toUpperCase();
       const awayAbbr = awayComp.team?.abbreviation || awayName.slice(0,3).toUpperCase();
-
       const fmtML = v => v != null ? (v > 0 ? `+${v}` : `${v}`) : '—';
 
-      // Badge de record de temporada: verde si >60%, rojo si <40%, gris si medio
+      // === HELPERS ===
+      const logoHtml = (logo, abbr) => logo
+        ? `<img class="pcard-logo" src="${logo}" alt="${abbr}" onerror="this.style.display='none';this.nextSibling.style.display='flex'"><div class="pcard-logo-fb" style="display:none">${abbr}</div>`
+        : `<div class="pcard-logo-fb">${abbr}</div>`;
+
       const recBadge = (rec) => {
-        if (!rec) return '<span class="pred-form-badge">Sin datos</span>';
+        if (!rec?.total) return '';
         const { wins, losses, rate } = rec.total;
-        const cls = rate >= 0.60 ? 'hot' : rate <= 0.40 ? 'cold' : '';
-        return `<span class="pred-form-badge ${cls}">${wins}-${losses}</span>`;
+        const cls = rate >= 0.60 ? 'rec-hot' : rate <= 0.40 ? 'rec-cold' : '';
+        return `<span class="pcard-rec ${cls}">${wins}-${losses}</span>`;
       };
 
-      // Badge de racha actual: positivo (verde) = victorias, negativo (rojo) = derrotas
-      const streakBadge = (rec) => {
-        if (!rec || rec.streak == null || rec.streak === 0) return '';
-        const s = rec.streak;
-        const cls = s >= 3 ? 'hot' : s <= -3 ? 'cold' : '';
-        const lbl = s > 0 ? `↑ ${s}G` : `↓ ${Math.abs(s)}P`;
-        return `<span class="pred-form-badge ${cls}" style="font-size:0.65rem">${lbl}</span>`;
-      };
-
-      // Mini indicador de forma reciente (últimos 10 juegos).
-      // Datos vienen de standings → solo tenemos el resumen "8-2", sin secuencia individual.
-      // Mostramos el récord con color según win rate.
-      const formBar = (rec) => {
+      const formDots = (rec) => {
         if (!rec?.recentForm) return '';
         const { wins, losses, rate } = rec.recentForm;
-        const color = rate >= 0.70 ? 'var(--accent-green)'
-                    : rate >= 0.50 ? 'var(--accent-yellow)'
-                    : 'var(--accent-red)';
-        // Barra de proporción visual: N puntos verdes / M rojos (máx 10)
         const total = Math.min(wins + losses, 10);
         const wDots = Math.round(rate * total);
         const lDots = total - wDots;
-        const dots  = Array(wDots).fill('<span class="form-dot win"></span>').join('')
-                    + Array(lDots).fill('<span class="form-dot loss"></span>').join('');
-        return `<div class="recent-form-bar">
-          <span class="form-label">Últ10</span>${dots}
-          <span class="form-record" style="color:${color}">${wins}-${losses}</span>
+        return `<div class="fdots">${Array(wDots).fill('<span class="fdot w"></span>').join('')}${Array(lDots).fill('<span class="fdot l"></span>').join('')}</div>`;
+      };
+
+      // === WIN PROBABILITY ===
+      const homeProb = pred.homeEstP != null ? Math.round(pred.homeEstP * 100) : null;
+      const awayProb = homeProb != null ? 100 - homeProb : null;
+
+      // === ODDS MARKETS ===
+      // Spread
+      const spreadLine = odds.spreadHome != null
+        ? `${homeName} ${odds.spreadHome > 0 ? '+' : ''}${odds.spreadHome}`
+        : '—';
+      const spreadEdgeDiff = pred.spreadPick && pred.spreadPred != null && odds.spreadHome != null
+        ? pred.spreadPred - (-odds.spreadHome)
+        : null;
+      const spreadUnit = league === 'mlb' ? 'C' : 'pts';
+      const spreadHasValue = spreadEdgeDiff != null && Math.abs(spreadEdgeDiff) >= (league === 'mlb' ? 0.5 : 2);
+      const spreadIsPick = pred.spreadPick != null && spreadHasValue;
+      const spreadEdgeStr = spreadEdgeDiff != null
+        ? `${spreadEdgeDiff > 0 ? '+' : ''}${spreadEdgeDiff.toFixed(1)} ${spreadUnit}`
+        : null;
+
+      // Moneyline
+      const mlOdds = pred.pick === 'home' ? odds.mlHome : pred.pick === 'away' ? odds.mlAway : null;
+      const mlLine = pred.pick
+        ? `${pred.pickName} ${fmtML(mlOdds)}`
+        : (odds.mlHome != null ? `${homeName} ${fmtML(odds.mlHome)}` : '—');
+      const mlEdgePct = pred.edge != null ? Math.round(pred.edge * 100) : null;
+      const mlHasValue = mlEdgePct != null && mlEdgePct >= 1;
+      const mlIsPick   = pred.pick != null && pred.confidence !== 'none';
+
+      // Total
+      const totalLine = pred.totalPick && pred.totalLine != null
+        ? `${pred.totalPick === 'OVER' ? '↑' : '↓'} ${pred.totalPick} ${pred.totalLine}`
+        : (pred.totalLine != null ? `O/U ${pred.totalLine}` : '—');
+      const totalEdgeAbs = pred.totalEdge != null ? Math.abs(pred.totalEdge) : null;
+      const totalUnit = league === 'mlb' ? 'C' : 'pts';
+      const totalHasValue = totalEdgeAbs != null && totalEdgeAbs >= (league === 'mlb' ? 0.5 : 2);
+      const totalIsPick = pred.totalPick != null && totalHasValue;
+      const totalEdgeStr = pred.totalEdge != null
+        ? `${pred.totalEdge > 0 ? '+' : ''}${pred.totalEdge.toFixed(1)} ${totalUnit}`
+        : null;
+
+      const mktCell = (type, line, isPick, hasValue, edgeStr, edgePct) => {
+        const cls = isPick ? 'mkt-pick' : hasValue ? 'mkt-value' : 'mkt-neutral';
+        const edgeLabel = isPick && edgePct != null
+          ? `<span class="mkt-edge">+${edgePct}% edge</span>`
+          : (hasValue && edgeStr ? `<span class="mkt-edge">${edgeStr}</span>` : `<span class="mkt-edge mkt-edge-none">sin edge</span>`);
+        return `<div class="odds-mkt ${cls}">
+          <div class="odds-mkt-type">${type}</div>
+          <div class="odds-mkt-val">${escapeHtml(line)}</div>
+          ${edgeLabel}
         </div>`;
       };
 
-      // Badge de días de descanso (B2B, Normal o Descansado)
-      const restBadge = (rec) => {
-        if (rec?.restDays == null) return '';
-        if (rec.restDays === 0) return `<span class="rest-badge rest-b2b">B2B</span>`;
-        if (rec.restDays >= 3)  return `<span class="rest-badge rest-rested">${rec.restDays}d descanso</span>`;
-        return `<span class="rest-badge rest-normal">${rec.restDays}d desc</span>`;
-      };
-
-      // Badge de confianza
-      const confMap = {
-        high:   ['conf-high',   'ALTA'],
-        medium: ['conf-medium', 'MEDIA'],
-        low:    ['conf-low',    'BAJA'],
-        none:   ['conf-none',   'N/D']
-      };
+      // === PICK STRIP ===
+      const confMap = { high: ['conf-high','ALTA'], medium: ['conf-medium','MEDIA'], low: ['conf-low','BAJA'], none: ['conf-none','N/D'] };
       const [confCls, confLabel] = confMap[pred.confidence] || confMap.none;
 
-      // Pick resaltado en verde
-      const pickCls = (side) => pred.pick === side ? 'pick-winner' : '';
+      // === PITCHERS (MLB) ===
+      const pitchersBlock = (homePitcher || awayPitcher) ? `
+        <div class="pcard-pitchers">
+          ${lineupStatus === 'confirmed' ? `<span class="lineup-badge confirmed">✓ Confirmada</span>` :
+            lineupStatus === 'probable'  ? `<span class="lineup-badge probable">~ Probable</span>` : ''}
+          <div class="pcard-pitcher-item">
+            <span class="pcard-pitcher-abbr">${awayAbbr}</span>
+            <span class="pcard-pitcher-name">${escapeHtml(awayPitcher?.name || 'TBD')}</span>
+            ${awayPitcher?.era != null ? `<span class="pcard-pitcher-stat ${awayPitcher.era < 3.5 ? 'good' : awayPitcher.era > 5 ? 'bad' : ''}">ERA ${awayPitcher.era.toFixed(2)}</span>` : ''}
+            ${awayPitcher?.whip != null ? `<span class="pcard-pitcher-stat">WHIP ${awayPitcher.whip.toFixed(2)}</span>` : ''}
+          </div>
+          <span class="pcard-pitcher-vs">vs</span>
+          <div class="pcard-pitcher-item">
+            <span class="pcard-pitcher-abbr">${homeAbbr}</span>
+            <span class="pcard-pitcher-name">${escapeHtml(homePitcher?.name || 'TBD')}</span>
+            ${homePitcher?.era != null ? `<span class="pcard-pitcher-stat ${homePitcher.era < 3.5 ? 'good' : homePitcher.era > 5 ? 'bad' : ''}">ERA ${homePitcher.era.toFixed(2)}</span>` : ''}
+            ${homePitcher?.whip != null ? `<span class="pcard-pitcher-stat">WHIP ${homePitcher.whip.toFixed(2)}</span>` : ''}
+          </div>
+        </div>` : '';
 
-      // Una fila por cada señal del modelo ensemble (Record, Pythagorean, Racha)
+      // === H2H ===
+      const h2hBlock = h2h ? (() => {
+        const awayWins = h2h.total - h2h.homeWins;
+        const favor = h2h.homeWins > awayWins ? homeName : awayWins > h2h.homeWins ? awayName : null;
+        const cls = favor === homeName ? 'h2h-home' : favor === awayName ? 'h2h-away' : 'h2h-even';
+        return `<div class="pcard-h2h">
+          <span class="pcard-h2h-label">H2H</span>
+          <span class="pcard-h2h-record">${awayAbbr} ${awayWins}–${h2h.homeWins} ${homeAbbr}</span>
+          <span class="pred-h2h-tag ${cls}">${favor ? `${favor} domina` : 'Igualado'}</span>
+        </div>`;
+      })() : '';
+
+      // === INJURIES (chips compactos) ===
+      const injChips = (list) => {
+        if (!list?.length) return '';
+        return list.slice(0,2).map(i => `<span class="inj-chip sev-${i.severity}">${i.position || '?'} ${injuryStatusShort(i.status)}</span>`).join('')
+             + (list.length > 2 ? `<span class="inj-chip-more">+${list.length - 2}</span>` : '');
+      };
+      const injRow = (homeInjuries.length || awayInjuries.length) ? `
+        <div class="pcard-inj-row">
+          <div class="pcard-inj-side">${injChips(awayInjuries)}</div>
+          <span class="pcard-inj-label">Lesiones</span>
+          <div class="pcard-inj-side">${injChips(homeInjuries)}</div>
+        </div>` : '';
+
+      // === TECHNICAL ANALYSIS (hidden) ===
       const signalRows = (pred.signals || []).map(s => {
-        const homeP = s.homeP, awayP = 1 - s.homeP;
         const w = Math.round(s.weight * 100);
         return `<div class="pred-prob-row">
           <span class="pred-prob-label">${s.name} <span style="color:var(--text-muted);font-size:0.68rem">(${w}%)</span></span>
           <div class="pred-prob-values">
-            <span class="pred-prob-team">${awayAbbr} ${fmtPct(awayP)}</span>
-            <span class="pred-prob-team">${homeAbbr} ${fmtPct(homeP)}</span>
+            <span class="pred-prob-team">${awayAbbr} ${fmtPct(1 - s.homeP)}</span>
+            <span class="pred-prob-team">${homeAbbr} ${fmtPct(s.homeP)}</span>
           </div>
         </div>`;
       }).join('');
 
-      // ===== 3 PICKS ACCIONABLES =====
-      // Cada apuesta (ML / Total / Spread) se muestra como una card con:
-      // pick específico, fuerza del edge, y una línea de razón concreta.
-
-      // Helper: clasifica fuerza según magnitud del edge
-      const classify = (val, strong, ok) => {
-        if (val == null) return { cls: 'strength-none', label: 'SIN EDGE' };
-        const a = Math.abs(val);
-        if (a >= strong) return { cls: 'strength-strong', label: 'FUERTE' };
-        if (a >= ok)     return { cls: 'strength-ok',     label: 'EDGE' };
-        return { cls: 'strength-weak', label: 'DÉBIL' };
-      };
-
-      // 1) MONEYLINE — apuesta directa: ¿quién gana el partido?
-      const mlPick = (() => {
-        if (!pred.pick || pred.confidence === 'none') {
-          return { cls: 'strength-none', label: 'SIN VALOR',
-            main: 'Sin datos suficientes',
-            meta: 'No tenemos información para calcular un pick fiable en este partido.' };
-        }
-        const edgePct  = pred.edge != null ? Math.round(pred.edge * 100) : null;
-        const mlOdds   = pred.pick === 'home' ? odds.mlHome : odds.mlAway;
-        const teamFull = pred.pickName;
-        const oddsStr  = mlOdds != null ? fmtML(mlOdds) : '—';
-        const modeloPct = pred.pick === 'home' ? Math.round(pred.homeEstP * 100) : Math.round(pred.awayEstP * 100);
-        const cuotasP   = pred.pick === 'home' ? pred.homeImpP : pred.awayImpP;
-        // Sin línea moneyline disponible: no podemos calcular edge ni comparar.
-        if (cuotasP == null) {
-          return { cls: 'strength-none', label: 'SIN ODDS',
-            main: `${teamFull}`,
-            meta: `El modelo proyecta a <strong>${teamFull}</strong> con <strong>${modeloPct}%</strong> de ganar, pero no hay moneyline publicado para comparar.` };
-        }
-        const strength = classify(edgePct, 6, 3);
-        if (edgePct != null && edgePct < 1) {
-          return { cls: 'strength-none', label: 'SIN VALOR',
-            main: 'Pasar moneyline',
-            meta: 'La casa de apuestas ya tiene el partido bien evaluado. No hay ventaja para apostar.' };
-        }
-        const cuotasPct = Math.round(cuotasP * 100);
-        const edgeStr   = `${edgePct > 0 ? '+' : ''}${edgePct}%`;
-        return {
-          cls: strength.cls, label: strength.label,
-          main: `${teamFull} ${oddsStr}`,
-          meta: `La casa paga como si <strong>${teamFull}</strong> tuviera <strong>${cuotasPct}%</strong> de ganar, pero los datos sugieren <strong>${modeloPct}%</strong>. Tu ventaja: <strong>${edgeStr}</strong>.`
-        };
-      })();
-
-      // 2) TOTAL — ¿se anotará MÁS o MENOS que la línea? (suma de ambos equipos)
-      const totalPick = (() => {
-        if (pred.totalLine == null || pred.totalPred == null) {
-          return { cls: 'strength-none', label: 'SIN VALOR',
-            main: 'Sin datos para total',
-            meta: 'No hay línea publicada o faltan estadísticas ofensivas para predecir.' };
-        }
-        const edgeAbs = Math.abs(pred.totalEdge);
-        const thresholds = league === 'mlb' ? { strong: 1.5, ok: 0.5 } : { strong: 5, ok: 2 };
-        const strength = classify(edgeAbs, thresholds.strong, thresholds.ok);
-        const unidad = league === 'mlb' ? 'carreras' : 'puntos';
-        if (!pred.totalPick) {
-          return { cls: 'strength-none', label: 'SIN VALOR',
-            main: `Pasar O/U ${pred.totalLine}`,
-            meta: `Esperamos ~<strong>${pred.totalPred.toFixed(1)}</strong> ${unidad} y la línea está en <strong>${pred.totalLine}</strong>. Demasiado parejo para apostar.` };
-        }
-        const arrow    = pred.totalPick === 'OVER' ? '↑' : '↓';
-        const dirText  = pred.totalPick === 'OVER' ? 'más' : 'menos';
-        const diffStr  = Math.abs(pred.totalEdge).toFixed(1);
-        return {
-          cls: strength.cls, label: strength.label,
-          main: `${arrow} ${pred.totalPick} ${pred.totalLine}`,
-          meta: `El modelo proyecta <strong>${pred.totalPred.toFixed(1)}</strong> ${unidad} entre los dos equipos — <strong>${diffStr} ${dirText}</strong> que la línea de <strong>${pred.totalLine}</strong>. Buen valor en el ${pred.totalPick}.`
-        };
-      })();
-
-      // 3) SPREAD — ¿gana por X o más? (margen de victoria)
-      const spreadPick = (() => {
-        if (pred.spreadHome == null || pred.spreadPred == null) {
-          return { cls: 'strength-none', label: 'SIN VALOR',
-            main: 'Sin datos para spread',
-            meta: 'No hay línea de spread disponible o faltan diferenciales de equipo.' };
-        }
-        const requiredMargin = -pred.spreadHome;
-        const spreadDiff = pred.spreadPred - requiredMargin;
-        // Thresholds por liga: NBA juega con margenes más amplios que MLB (carreras enteras).
-        const sprThr = league === 'mlb' ? { strong: 1.0, ok: 0.5 } : { strong: 4, ok: 2 };
-        const strength = classify(spreadDiff, sprThr.strong, sprThr.ok);
-        const unit = league === 'mlb' ? 'C' : 'pts';
-        if (!pred.spreadPick) {
-          const localMargin = pred.spreadPred > 0
-            ? `gana por ${pred.spreadPred.toFixed(1)}`
-            : `pierde por ${Math.abs(pred.spreadPred).toFixed(1)}`;
-          return { cls: 'strength-none', label: 'SIN VALOR',
-            main: `Pasar spread`,
-            meta: `La línea pide que el local gane por <strong>${requiredMargin > 0 ? '+' : ''}${requiredMargin}</strong> y el modelo proyecta que ${localMargin}. Diferencia muy pequeña.` };
-        }
-        const teamFull = pred.spreadPick === 'home' ? homeName : awayName;
-        const teamSpread = pred.spreadPick === 'home' ? pred.spreadHome : -pred.spreadHome;
-        const teamSpreadStr = (teamSpread > 0 ? '+' : '') + teamSpread;
-        const margenAbs = Math.abs(spreadDiff).toFixed(1);
-        return {
-          cls: strength.cls, label: strength.label,
-          main: `${teamFull} ${teamSpreadStr}`,
-          meta: `El modelo proyecta a <strong>${teamFull}</strong> ganando con <strong>${margenAbs} ${unit}</strong> más de lo que pide la línea. Margen suficiente para cubrir.`
-        };
-      })();
-
-      const renderPickCard = (type, p) => `
-        <div class="pick-card ${p.cls}">
-          <div class="pick-card-header">
-            <span class="pick-type">${type}</span>
-            <span class="pick-strength-badge">${p.label}</span>
-          </div>
-          <div class="pick-main">${p.main}</div>
-          <div class="pick-meta">${p.meta}</div>
-        </div>`;
-
-      const picksGrid = `
-        <div class="pred-picks-grid">
-          ${renderPickCard('Moneyline', mlPick)}
-          ${renderPickCard('Total O/U', totalPick)}
-          ${renderPickCard('Spread', spreadPick)}
-        </div>`;
-
-      // Bloque de probabilidades (solo si hay datos)
       const analysisBlock = pred.confidence !== 'none' ? `
         <div class="pred-analysis">
           <div class="pred-prob-row">
-            <span class="pred-prob-label" style="color:var(--accent-yellow)">Prob. implícita (cuotas)</span>
+            <span class="pred-prob-label" style="color:var(--accent-yellow)">Implícita (cuotas)</span>
             <div class="pred-prob-values">
               <span class="pred-prob-team">${awayAbbr} ${fmtPct(pred.awayImpP)}</span>
               <span class="pred-prob-team">${homeAbbr} ${fmtPct(pred.homeImpP)}</span>
@@ -1934,194 +1853,122 @@
               <span class="pred-prob-team" style="color:var(--accent-green)">${homeAbbr} ${fmtPct(pred.homeEstP)}</span>
             </div>
           </div>
-          ${pred.edge != null ? (() => {
-            const pct  = Math.round(pred.edge * 100);
-            const cls  = pct > 0 ? 'pred-edge-pos' : pct < 0 ? 'pred-edge-neg' : 'pred-edge-neu';
-            const name = pred.pick === 'home' ? homeName : awayName;
-            return `<div class="pred-edge-row" style="margin-top:6px">
-              <span class="pred-edge-label">Edge ${name}:</span>
-              <span class="${cls}">${pct > 0 ? '+' : ''}${pct}%</span>
-            </div>`;
-          })() : ''}
         </div>` : '';
 
+      // === PARLAY BUTTON ===
+      const parlayBtn = pred.confidence !== 'none' && pred.pick ? (() => {
+        const _name    = (pred.pick === 'home' ? homeName : awayName).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+        const _ml      = pred.pick === 'home' ? (odds.mlHome ?? null) : (odds.mlAway ?? null);
+        const _id      = `${league}-${game.id}-${pred.pick}`;
+        return `<button class="parlay-add-btn" data-parlay-id="${_id}"
+          onclick="toggleParlayPick('${_id}','${_name} ML',${_ml},'${pred.pick}','${league}',${pred.homeEstP ?? 0.5})"
+        >+ Parlay</button>`;
+      })() : '';
+
+      // === PROPS TOGGLE ===
+      const propsToggle = (() => {
+        const hasNBA = league === 'nba' && (homeTopScorers.length || awayTopScorers.length);
+        const hasMLB = league === 'mlb' && (homePitcher?.id || awayPitcher?.id || homeTopBatters.length || awayTopBatters.length);
+        if (!hasNBA && !hasMLB) return '';
+        const hSJ = escapeHtml(JSON.stringify(homeTopScorers));
+        const aSJ = escapeHtml(JSON.stringify(awayTopScorers));
+        const hBJ = escapeHtml(JSON.stringify(homeTopBatters));
+        const aBJ = escapeHtml(JSON.stringify(awayTopBatters));
+        return `<button class="pred-props-toggle" onclick="loadGameProps(this)"
+          data-sport="${league}"
+          data-home-scorers='${hSJ}' data-away-scorers='${aSJ}'
+          data-home-batters='${hBJ}' data-away-batters='${aBJ}'
+          data-home-pitcher-id="${homePitcher?.id || ''}"
+          data-away-pitcher-id="${awayPitcher?.id || ''}"
+          data-home-pitcher-name="${escapeHtml(homePitcher?.name || '')}"
+          data-away-pitcher-name="${escapeHtml(awayPitcher?.name || '')}"
+          data-home-team-id="${homeComp.team?.id || ''}"
+          data-away-team-id="${awayComp.team?.id || ''}"
+          data-home-name="${escapeHtml(homeComp.team?.shortDisplayName || homeAbbr)}"
+          data-away-name="${escapeHtml(awayComp.team?.shortDisplayName || awayAbbr)}"
+          data-home-abbr="${homeAbbr}" data-away-abbr="${awayAbbr}"
+        >Tendencias de jugadores ▼</button>
+        <div class="pred-props-content"></div>
+        ${league === 'mlb' && ((homePitcher?.fullName && homePitcher.fullName !== 'TBD') || (awayPitcher?.fullName && awayPitcher.fullName !== 'TBD')) ? `
+        <button class="pred-props-toggle" onclick="loadLineupVsPitcher(this)"
+          style="border-top:none;background:rgba(255,215,0,0.05);color:var(--accent-yellow)"
+          data-home-name="${escapeHtml(homeComp.team?.displayName || homeName)}"
+          data-away-name="${escapeHtml(awayComp.team?.displayName || awayName)}"
+          data-home-pitcher-name="${escapeHtml(homePitcher?.fullName || '')}"
+          data-away-pitcher-name="${escapeHtml(awayPitcher?.fullName || '')}"
+          data-home-abbr="${homeAbbr}" data-away-abbr="${awayAbbr}"
+        >Alineación vs pitcher ▼</button>
+        <div class="pred-props-content"></div>` : ''}`;
+      })();
+
+      // === RENDER ===
       return `
         <div class="pred-card ${league}" data-league="${league}">
 
-          <!-- Línea superior: liga, estado y hora -->
-          <div class="pred-card-top">
-            <div style="display:flex;align-items:center;gap:7px">
+          <div class="pcard-top">
+            <div class="pcard-meta-left">
               <span class="pred-league-badge ${league}">${league.toUpperCase()}</span>
-              <span class="status-badge ${statusInfo.css}" style="font-size:0.63rem">${statusInfo.label}</span>
+              <span class="status-badge ${statusInfo.css}">${statusInfo.label}</span>
               ${weatherSignal ? renderWeatherBadge(weatherSignal) : ''}
             </div>
-            <div style="display:flex;align-items:center;gap:8px">
-              ${pred.confidence !== 'none' && pred.pick ? (() => {
-                const _pickName = (pred.pick === 'home' ? homeName : awayName).replace(/'/g,"\\'").replace(/"/g,'&quot;');
-                const _pickML   = pred.pick === 'home' ? (odds.mlHome ?? null) : (odds.mlAway ?? null);
-                const _parlayId = `${league}-${game.id}-${pred.pick}`;
-                return `<button class="parlay-add-btn"
-                  data-parlay-id="${_parlayId}"
-                  onclick="toggleParlayPick('${_parlayId}','${_pickName} ML',${_pickML},'${pred.pick}','${league}',${pred.homeEstP ?? 0.5})"
-                >+ Parlay</button>`;
-              })() : ''}
-              <span class="pred-card-time">${formatGameTime(game.date)}</span>
+            <div class="pcard-meta-right">
+              <span class="pcard-time">${formatGameTime(game.date)}</span>
+              ${parlayBtn}
             </div>
           </div>
 
-          <!-- Equipos: visitante @ local con record + stats clave -->
-          <div class="pred-teams-row">
-            <div class="pred-team-info">
-              ${awayLogo
-                ? `<img class="pred-team-logo" src="${awayLogo}" alt="${awayName}"
-                       onerror="this.style.display='none';this.nextSibling.style.display='flex'">
-                   <div class="pred-team-logo-fallback" style="display:none">${awayAbbr}</div>`
-                : `<div class="pred-team-logo-fallback">${awayAbbr}</div>`}
-              <div class="pred-team-name ${pickCls('away')}">${awayName}</div>
+          <div class="pcard-matchup">
+            <div class="pcard-team">
+              ${logoHtml(awayLogo, awayAbbr)}
+              <div class="pcard-team-name ${pred.pick === 'away' ? 'pick-winner' : ''}">${awayName}</div>
               ${recBadge(awayRec)}
-              ${awayRec?.pf != null
-                ? `<div class="pred-ppg">${awayRec.pf.toFixed(1)} a favor / ${awayRec.pa.toFixed(1)} en contra</div>`
-                : (awayRec?.road ? `<div class="pred-ppg">${awayRec.road.wins}-${awayRec.road.losses} ruta</div>` : '')}
-              ${streakBadge(awayRec)}
-              ${formBar(awayRec)}
-              ${restBadge(awayRec)}
-              ${injuriesBlock(awayInjuries)}
+              ${formDots(awayRec)}
             </div>
-
-            <div class="pred-vs-col">@</div>
-
-            <div class="pred-team-info">
-              ${homeLogo
-                ? `<img class="pred-team-logo" src="${homeLogo}" alt="${homeName}"
-                       onerror="this.style.display='none';this.nextSibling.style.display='flex'">
-                   <div class="pred-team-logo-fallback" style="display:none">${homeAbbr}</div>`
-                : `<div class="pred-team-logo-fallback">${homeAbbr}</div>`}
-              <div class="pred-team-name ${pickCls('home')}">${homeName}</div>
+            <div class="pcard-prob-center">
+              ${homeProb != null ? `
+                <div class="pcard-prob-pcts">
+                  <span class="pcard-pct ${pred.pick === 'away' ? 'pct-pick' : ''}">${awayProb}%</span>
+                  <span class="pcard-pct ${pred.pick === 'home' ? 'pct-pick' : ''}">${homeProb}%</span>
+                </div>
+                <div class="pcard-prob-bar"><div class="pcard-prob-fill" style="width:${awayProb}%"></div></div>
+              ` : '<div class="pcard-vs-label">@</div>'}
+            </div>
+            <div class="pcard-team home">
+              ${logoHtml(homeLogo, homeAbbr)}
+              <div class="pcard-team-name ${pred.pick === 'home' ? 'pick-winner' : ''}">${homeName}</div>
               ${recBadge(homeRec)}
-              ${homeRec?.pf != null
-                ? `<div class="pred-ppg">${homeRec.pf.toFixed(1)} a favor / ${homeRec.pa.toFixed(1)} en contra</div>`
-                : (homeRec?.home ? `<div class="pred-ppg">${homeRec.home.wins}-${homeRec.home.losses} casa</div>` : '')}
-              ${streakBadge(homeRec)}
-              ${formBar(homeRec)}
-              ${restBadge(homeRec)}
-              ${injuriesBlock(homeInjuries)}
+              ${formDots(homeRec)}
             </div>
           </div>
 
-          <!-- Probable pitchers (solo MLB) -->
-          ${(homePitcher || awayPitcher) ? `
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-            <span style="font-size:0.72rem;color:var(--text-muted)">Pitchers abridores</span>
-            ${lineupStatus === 'confirmed' ? `<span class="lineup-badge confirmed">✓ Alineación confirmada</span>` :
-              lineupStatus === 'probable'  ? `<span class="lineup-badge probable">~ Alineación probable</span>`  : ''}
+          ${pitchersBlock}
+          ${h2hBlock}
+          ${injRow}
+
+          <div class="pcard-odds-row">
+            ${mktCell('Spread',    spreadLine, spreadIsPick, spreadHasValue, spreadEdgeStr, null)}
+            ${mktCell('Moneyline', mlLine,     mlIsPick,     mlHasValue,     null,          mlHasValue ? mlEdgePct : null)}
+            ${mktCell('Total O/U', totalLine,  totalIsPick,  totalHasValue,  totalEdgeStr,  null)}
           </div>
-          <div class="pred-pitchers-row">
-            <div class="pred-pitcher-side">
-              <div class="pred-pitcher-label">Abridor visitante</div>
-              <div class="pred-pitcher-name">${awayPitcher?.name || 'TBD'}</div>
-              ${awayPitcher?.era != null
-                ? `<div class="pred-pitcher-stats">
-                    <span class="${awayPitcher.era < 3.5 ? 'pitcher-good' : awayPitcher.era > 5 ? 'pitcher-bad' : ''}">ERA ${awayPitcher.era.toFixed(2)}</span>
-                    ${awayPitcher.record ? `<span class="pred-pitcher-rec">${awayPitcher.record}</span>` : ''}
-                   </div>`
-                : '<div class="pred-pitcher-stats" style="color:var(--text-muted)">sin stats</div>'}
-            </div>
-            <div class="pred-pitcher-divider">vs</div>
-            <div class="pred-pitcher-side">
-              <div class="pred-pitcher-label">Abridor local</div>
-              <div class="pred-pitcher-name">${homePitcher?.name || 'TBD'}</div>
-              ${homePitcher?.era != null
-                ? `<div class="pred-pitcher-stats">
-                    <span class="${homePitcher.era < 3.5 ? 'pitcher-good' : homePitcher.era > 5 ? 'pitcher-bad' : ''}">ERA ${homePitcher.era.toFixed(2)}</span>
-                    ${homePitcher.record ? `<span class="pred-pitcher-rec">${homePitcher.record}</span>` : ''}
-                   </div>`
-                : '<div class="pred-pitcher-stats" style="color:var(--text-muted)">sin stats</div>'}
-            </div>
-          </div>` : ''}
-
-          <!-- Historial directo (H2H) de la temporada actual -->
-          ${h2h ? (() => {
-            const awayWins = h2h.total - h2h.homeWins;
-            const favor = h2h.homeWins > awayWins ? homeName
-                        : awayWins > h2h.homeWins ? awayName : null;
-            const label = favor ? `${favor} domina` : 'Serie igualada';
-            const cls   = favor === homeName ? 'h2h-home' : favor === awayName ? 'h2h-away' : 'h2h-even';
-            return `<div class="pred-h2h-row">
-              <span class="pred-h2h-label">H2H temporada</span>
-              <span class="pred-h2h-record">${awayName} ${awayWins} – ${h2h.homeWins} ${homeName}</span>
-              <span class="pred-h2h-tag ${cls}">${label}</span>
-            </div>`;
-          })() : ''}
-
-          <!-- 3 picks accionables: Moneyline, Total, Spread -->
-          ${picksGrid}
 
           ${pred.pick && pred.confidence !== 'none' ? `
-            <div class="pred-pick-section" style="padding-top:0;">
-              <div class="pred-pick-header">
-                <span class="pred-pick-label">Justificación</span>
-                <span class="confidence-badge ${confCls}">${confLabel}</span>
-                ${pred.edge != null && pred.edge > 0.03 ? `<span class="badge-value">VALUE BET</span>` :
-                  pred.edge != null && pred.edge < 0    ? `<span class="badge-risk">HIGH RISK</span>` :
-                  (pred.confidence === 'medium' || pred.confidence === 'high') && pred.edge != null && pred.edge >= 0 ? `<span class="badge-safe">SAFE PICK</span>` : ''}
-              </div>
-              <div class="pred-pick-reason">${pred.reason}</div>
-            </div>` : (pred.confidence === 'none' ? `
-            <div class="pred-pick-section">
-              <div class="pred-insufficient">${pred.reason}</div>
-              <span class="badge-nobet">NO BET</span>
-            </div>` : '')}
+            <div class="pcard-pick-row">
+              <span class="pcard-pick-name">${pred.pickName} ML</span>
+              <span class="confidence-badge ${confCls}">${confLabel}</span>
+              ${pred.edge != null ? `<span class="edge-chip ${pred.edge >= 0 ? 'pos' : 'neg'}">${pred.edge > 0 ? '+' : ''}${Math.round(pred.edge * 100)}% edge</span>` : ''}
+              ${pred.edge != null && pred.edge >= 0.03 ? '<span class="badge-value">VALUE</span>' : ''}
+            </div>
+            <div class="pcard-reason">${escapeHtml(pred.reason || '')}</div>
+          ` : `
+            <div class="pcard-pick-row no-pick">
+              <span class="conf-none-label">Sin pick — datos insuficientes</span>
+            </div>
+          `}
 
-          <!-- Toggle de detalles avanzados (señales, probabilidades) -->
-          <button class="pred-details-toggle" onclick="togglePredDetails(this)">
-            Ver análisis técnico ▼
-          </button>
-          <div class="pred-details-content">
-            ${analysisBlock}
-          </div>
+          <button class="pred-details-toggle" onclick="togglePredDetails(this)">Análisis técnico ▼</button>
+          <div class="pred-details-content">${analysisBlock}</div>
 
-          <!-- Props de jugadores (lazy-load al hacer click) -->
-          ${(() => {
-            const hasNBAIds  = league === 'nba' && (homeTopScorers.length || awayTopScorers.length);
-            const hasMLBIds  = league === 'mlb' && (homePitcher?.id || awayPitcher?.id || homeTopBatters.length || awayTopBatters.length);
-            if (!hasNBAIds && !hasMLBIds) return '';
-            // Serializamos arrays como JSON para no inflar el DOM con 6 atributos por jugador.
-            const homeScorersJSON = escapeHtml(JSON.stringify(homeTopScorers));
-            const awayScorersJSON = escapeHtml(JSON.stringify(awayTopScorers));
-            const homeBattersJSON = escapeHtml(JSON.stringify(homeTopBatters));
-            const awayBattersJSON = escapeHtml(JSON.stringify(awayTopBatters));
-            return `<button class="pred-props-toggle"
-              onclick="loadGameProps(this)"
-              data-sport="${league}"
-              data-home-scorers='${homeScorersJSON}'
-              data-away-scorers='${awayScorersJSON}'
-              data-home-batters='${homeBattersJSON}'
-              data-away-batters='${awayBattersJSON}'
-              data-home-pitcher-id="${homePitcher?.id || ''}"
-              data-away-pitcher-id="${awayPitcher?.id || ''}"
-              data-home-pitcher-name="${escapeHtml(homePitcher?.name || '')}"
-              data-away-pitcher-name="${escapeHtml(awayPitcher?.name || '')}"
-              data-home-team-id="${homeComp.team?.id || ''}"
-              data-away-team-id="${awayComp.team?.id || ''}"
-              data-home-name="${escapeHtml(homeComp.team?.shortDisplayName || homeAbbr)}"
-              data-away-name="${escapeHtml(awayComp.team?.shortDisplayName || awayAbbr)}"
-              data-home-abbr="${homeAbbr}"
-              data-away-abbr="${awayAbbr}"
-            >🎯 Ver tendencias de jugadores ▼</button>
-            <div class="pred-props-content"></div>
-            ${league === 'mlb' && ((homePitcher?.fullName && homePitcher.fullName !== 'TBD') || (awayPitcher?.fullName && awayPitcher.fullName !== 'TBD')) ? `
-            <button class="pred-props-toggle"
-              onclick="loadLineupVsPitcher(this)"
-              style="border-top:none;background:rgba(255,215,0,0.05);color:var(--accent-yellow)"
-              data-home-name="${escapeHtml(homeComp.team?.displayName || homeName)}"
-              data-away-name="${escapeHtml(awayComp.team?.displayName || awayName)}"
-              data-home-pitcher-name="${escapeHtml(homePitcher?.fullName || '')}"
-              data-away-pitcher-name="${escapeHtml(awayPitcher?.fullName || '')}"
-              data-home-abbr="${homeAbbr}"
-              data-away-abbr="${awayAbbr}"
-            >⚾ Alineación vs pitcher ▼</button>
-            <div class="pred-props-content"></div>` : ''}`;
-          })()}
+          ${propsToggle}
 
         </div>`;
     }

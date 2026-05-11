@@ -2621,3 +2621,499 @@
   color: var(--accent-yellow);
   border: 1px solid rgba(255, 200, 0, 0.3);
 }
+
+/* =====================================================================
+   REDISEÑO OUTLIER-STYLE — nuevas cards de predicción + featured picks
+   ===================================================================== */
+
+/* --- Featured Picks (horizontal scroll en la parte superior) --- */
+.featured-picks {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+.featured-picks-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.featured-picks-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.featured-picks-title::before {
+  content: '🏆 ';
+}
+.featured-picks-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.featured-picks-scroll {
+  display: flex;
+  gap: 10px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.featured-picks-scroll::-webkit-scrollbar { height: 4px; }
+.featured-picks-scroll::-webkit-scrollbar-track { background: transparent; }
+.featured-picks-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.featured-picks-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.featured-pick-chip {
+  flex-shrink: 0;
+  width: 160px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: border-color 0.15s, transform 0.1s;
+  cursor: default;
+}
+.featured-pick-chip:hover { transform: translateY(-1px); }
+.featured-pick-chip.chip-strong {
+  border-color: rgba(0,208,132,0.45);
+  background: linear-gradient(135deg, rgba(0,208,132,0.07), var(--bg-secondary));
+}
+.featured-pick-chip.chip-ok {
+  border-color: rgba(255,215,0,0.35);
+  background: linear-gradient(135deg, rgba(255,215,0,0.05), var(--bg-secondary));
+}
+.featured-pick-chip.rank-1 { border-color: #ffd700; box-shadow: 0 0 10px rgba(255,215,0,0.15); }
+.featured-pick-chip.rank-2 { border-color: #c0c0c0; }
+.featured-pick-chip.rank-3 { border-color: #cd7f32; }
+.chip-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.chip-league {
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: #fff;
+}
+.chip-league.nba { background: var(--nba-color); }
+.chip-league.mlb { background: var(--mlb-color); }
+.chip-type {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.chip-main {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chip-strong .chip-main { color: var(--accent-green); }
+.chip-edge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent-green);
+}
+.chip-ok .chip-edge { color: var(--accent-yellow); }
+.chip-game {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- Nueva pred-card layout (Outlier-style) --- */
+
+/* Top meta bar */
+.pcard-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.pcard-meta-left  { display: flex; align-items: center; gap: 6px; }
+.pcard-meta-right { display: flex; align-items: center; gap: 8px; }
+.pcard-time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Matchup row: logo | team info | prob bar | team info | logo */
+.pcard-matchup {
+  display: flex;
+  align-items: center;
+  padding: 12px 14px 8px;
+  gap: 8px;
+}
+.pcard-team {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  min-width: 0;
+}
+.pcard-team.home { /* same but mirror */ }
+.pcard-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+.pcard-logo-fb {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.pcard-team-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.pcard-team-name.pick-winner { color: var(--accent-green); }
+.pcard-rec {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+  color: var(--text-secondary);
+}
+.pcard-rec.rec-hot  { background: rgba(0,208,132,0.14); color: var(--accent-green); }
+.pcard-rec.rec-cold { background: rgba(255,77,77,0.12);  color: var(--accent-red); }
+
+/* Form dots */
+.fdots {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.fdot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.fdot.w { background: var(--accent-green); }
+.fdot.l { background: rgba(255,77,77,0.55); }
+
+/* Center prob section */
+.pcard-prob-center {
+  flex: 0 0 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.pcard-prob-pcts {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+.pcard-pct {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.pcard-pct.pct-pick { color: var(--accent-green); }
+.pcard-prob-bar {
+  width: 100%;
+  height: 5px;
+  background: rgba(255,77,77,0.35);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.pcard-prob-fill {
+  height: 100%;
+  background: var(--accent-green);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.pcard-vs-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* Odds markets row — el corazón del diseño Outlier */
+.pcard-odds-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.odds-mkt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 8px;
+  gap: 2px;
+  border-right: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.15s;
+  position: relative;
+}
+.odds-mkt:last-child { border-right: none; }
+.odds-mkt-type {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.odds-mkt-val {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.mkt-edge {
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+.mkt-edge-none { color: var(--text-muted); font-weight: 400; }
+
+/* Market states */
+.odds-mkt.mkt-pick {
+  background: rgba(0,208,132,0.07);
+  border-bottom: 2px solid var(--accent-green);
+}
+.odds-mkt.mkt-pick .odds-mkt-val { color: var(--accent-green); }
+.odds-mkt.mkt-pick .mkt-edge { color: var(--accent-green); }
+
+.odds-mkt.mkt-value {
+  background: rgba(255,215,0,0.04);
+  border-bottom: 2px solid rgba(255,215,0,0.4);
+}
+.odds-mkt.mkt-value .mkt-edge { color: var(--accent-yellow); }
+
+.odds-mkt.mkt-neutral { border-bottom: 2px solid transparent; }
+.odds-mkt.mkt-neutral .odds-mkt-val { color: var(--text-secondary); }
+
+/* Pick strip */
+.pcard-pick-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 4px;
+  flex-wrap: wrap;
+}
+.pcard-pick-name {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--accent-green);
+}
+.edge-chip {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.edge-chip.pos {
+  background: rgba(0,208,132,0.14);
+  color: var(--accent-green);
+  border: 1px solid rgba(0,208,132,0.3);
+}
+.edge-chip.neg {
+  background: rgba(255,77,77,0.12);
+  color: var(--accent-red);
+  border: 1px solid rgba(255,77,77,0.25);
+}
+.pcard-pick-row.no-pick { padding: 10px 14px; }
+.conf-none-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Reason line */
+.pcard-reason {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  padding: 0 14px 12px;
+}
+
+/* Pitchers (MLB, compact horizontal) */
+.pcard-pitchers {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(77,166,255,0.04);
+  border-top: 1px solid rgba(255,255,255,0.04);
+  flex-wrap: wrap;
+}
+.pcard-pitcher-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 100px;
+}
+.pcard-pitcher-abbr {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.pcard-pitcher-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pcard-pitcher-stat {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.pcard-pitcher-stat.good { color: var(--accent-green); font-weight: 700; }
+.pcard-pitcher-stat.bad  { color: var(--accent-red);   font-weight: 700; }
+.pcard-pitcher-vs {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* H2H compact */
+.pcard-h2h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(255,255,255,0.02);
+  border-top: 1px solid rgba(255,255,255,0.04);
+  flex-wrap: wrap;
+}
+.pcard-h2h-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.pcard-h2h-record {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+/* Injuries compact row */
+.pcard-inj-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+  background: rgba(255,77,77,0.02);
+}
+.pcard-inj-side {
+  flex: 1;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.pcard-inj-side:first-child { justify-content: flex-start; }
+.pcard-inj-label {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.inj-chip {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.inj-chip.sev-out { background: rgba(255,77,77,0.18);  color: var(--accent-red); }
+.inj-chip.sev-il  { background: rgba(255,140,77,0.18); color: #ff8c4d; }
+.inj-chip.sev-dtd { background: rgba(255,215,0,0.14);  color: var(--accent-yellow); }
+.inj-chip-more {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  align-self: center;
+}
+
+/* Dashboard sidebar items mejorados */
+.dgi-matchup {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.sidebar-ml {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent-yellow);
+  background: rgba(255,215,0,0.08);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+/* Prediction section header cleaner */
+.pred-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.pred-section-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.pred-section-sub {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  margin-top: 3px;
+  line-height: 1.4;
+}

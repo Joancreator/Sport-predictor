@@ -21,11 +21,12 @@
 
       const homeAbbr = homeComp.team?.abbreviation || homeComp.team?.shortDisplayName || '?';
       const awayAbbr = awayComp.team?.abbreviation || awayComp.team?.shortDisplayName || '?';
+      const homeName = homeComp.team?.displayName || homeAbbr;
+      const awayName = awayComp.team?.displayName || awayAbbr;
 
       const isLive  = game.status?.type?.state === 'in';
       const isFinal = game.status?.type?.state === 'post';
 
-      // Lectura desde el historial si la predicción ya fue calculada
       const histKey = `${league}-${game.id}`;
       const pred    = (window.__predHistoryCache || {})[histKey];
       const confClass = pred?.confidence === 'high'   ? 'high'
@@ -33,15 +34,33 @@
                       : pred?.confidence === 'low'    ? 'low'
                       : '';
 
+      // Mini moneyline del local desde las odds cargadas
+      let miniOdds = '';
+      const oddsRaw = (typeof allTodayOddsRaw !== 'undefined' ? allTodayOddsRaw[league] : null) || [];
+      const oddsGame = oddsRaw.find(og =>
+        typeof teamLastWord === 'function' &&
+        teamLastWord(og.home_team) === teamLastWord(homeName) &&
+        teamLastWord(og.away_team) === teamLastWord(awayName)
+      );
+      if (oddsGame?.bookmakers?.length) {
+        const bk   = oddsGame.bookmakers[0];
+        const h2hM = bk.markets?.find(m => m.key === 'h2h');
+        const hOut = h2hM?.outcomes?.find(o => typeof teamLastWord === 'function' && teamLastWord(o.name) === teamLastWord(oddsGame.home_team));
+        if (hOut?.price != null) {
+          const ml = hOut.price;
+          miniOdds = `<span class="sidebar-ml">${ml > 0 ? '+' : ''}${ml}</span>`;
+        }
+      }
+
       let scoreOrTime = '';
       if (isLive) {
         scoreOrTime = `<span class="dashboard-game-item-score">${awayComp.score || '0'}-${homeComp.score || '0'}</span>
                        <span class="dashboard-game-item-live">EN VIVO</span>`;
       } else if (isFinal) {
         scoreOrTime = `<span class="dashboard-game-item-score">${awayComp.score || '0'}-${homeComp.score || '0'}</span>
-                       <span style="color:var(--text-muted)">Final</span>`;
+                       <span style="color:var(--text-muted);font-size:0.7rem">Final</span>`;
       } else {
-        scoreOrTime = `<span class="dashboard-game-item-time">${formatGameTime(game.date)}</span>`;
+        scoreOrTime = `${miniOdds}<span class="dashboard-game-item-time">${formatGameTime(game.date)}</span>`;
       }
 
       const isSelected = selectedGameKey === histKey ? 'selected' : '';
@@ -53,7 +72,7 @@
              onclick="selectDashboardGame('${game.id}', '${league}')">
           <div class="dashboard-game-item-teams">
             <span class="dashboard-conf-dot ${confClass}" title="${pred?.confidence || 'sin predicción'}"></span>
-            <span>${awayAbbr} @ ${homeAbbr}</span>
+            <span class="dgi-matchup">${awayAbbr} @ ${homeAbbr}</span>
           </div>
           <div class="dashboard-game-item-meta">
             ${scoreOrTime}
